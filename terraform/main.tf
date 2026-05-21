@@ -2,7 +2,7 @@
 # DIGITRANS-CM — Infrastructure as Code (IaC)
 # Terraform — AWS af-south-1 (Cape Town)
 # Module CRM SavoirManger
-# Auteur : Équipe CRM — Leukefack Christian
+# Auteur : Équipe CRM —
 # ============================================================
 
 terraform {

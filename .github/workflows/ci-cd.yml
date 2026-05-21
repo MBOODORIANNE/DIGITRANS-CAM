@@ -84,9 +84,9 @@ jobs:
       - name: Build backend image
         run: |
           docker build \
-            -f crmBackend/docker/Dockerfile.backend \
-            -t digitrans-backend \
-            ./crmBackend
+           -f ./crmFrontend/Dockerfile.frontend \
+            -t digitrans-frontend \
+            ./crmFrontend
 
       - name: Build frontend image
         run: |
