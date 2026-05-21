@@ -1,7 +1,7 @@
 # ============================================================
 # DIGITRANS-CM — CRM Frontend
 # Dockerfile Angular (Multi-stage build + Nginx)
-# Auteur : Équipe CRM — Gaouaffo Nanfah
+# Auteur : Équipe CRM —
 # ============================================================
 
 # ---- STAGE 1 : Build Angular ----
