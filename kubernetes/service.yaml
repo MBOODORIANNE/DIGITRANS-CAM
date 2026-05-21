@@ -1,0 +1,44 @@
+# ============================================================
+# DIGITRANS-CM — Services Kubernetes
+# Exposition des pods CRM
+# ============================================================
+
+# ── Service Backend (interne au cluster) ───────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: crm-backend-service
+  namespace: digitrans-crm
+  labels:
+    app: crm-backend
+spec:
+  selector:
+    app: crm-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP  # Accessible uniquement depuis l'intérieur du cluster
+
+---
+# ── Service Frontend (exposé via LoadBalancer AWS) ─────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: crm-frontend-service
+  namespace: digitrans-crm
+  labels:
+    app: crm-frontend
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  selector:
+    app: crm-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  type: LoadBalancer  # Crée un AWS NLB automatiquement

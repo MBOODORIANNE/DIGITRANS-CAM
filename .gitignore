@@ -1,0 +1,50 @@
+# ============================================================
+# DIGITRANS-CM — .gitignore
+# ⚠️ Ne JAMAIS committer les fichiers suivants sur GitHub !
+# ============================================================
+
+# Variables d'environnement (mots de passe, clés AWS)
+.env
+*.env
+!.env.example
+
+# Terraform — état et clés
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Java / Maven
+backend/target/
+*.class
+*.jar
+*.war
+
+# Spring Boot
+backend/src/main/resources/application-prod.yml
+backend/src/main/resources/application-local.yml
+
+# Node.js / Angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes locaux
+docker-volumes/
+
+# Logs
+*.log
+logs/

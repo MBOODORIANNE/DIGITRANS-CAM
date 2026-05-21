@@ -1,0 +1,46 @@
+# ============================================================
+# DIGITRANS-CM — CRM Backend
+# Dockerfile Spring Boot (Java 21 — Multi-stage build)
+# Auteur : Équipe CRM — Mboo Atangana
+# ============================================================
+
+# ---- STAGE 1 : Build ----
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
+
+WORKDIR /app
+
+# Copier le pom.xml d'abord (optimise le cache Docker)
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copier le code source et construire le JAR
+COPY src ./src
+RUN mvn clean package -DskipTests -B
+
+# ---- STAGE 2 : Runtime ----
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Créer un utilisateur non-root pour la sécurité (bonne pratique)
+RUN addgroup -S camtech && adduser -S crmuser -G camtech
+
+# Copier uniquement le JAR depuis le stage builder
+COPY --from=builder /app/target/crmBackend-0.0.1-SNAPSHOT.jar app.jar
+
+# Donner les droits à l'utilisateur non-root
+RUN chown crmuser:camtech app.jar
+USER crmuser
+
+# Port d'exposition
+EXPOSE 8080
+
+# Health check intégré
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+
+# Lancement avec profil production
+ENTRYPOINT ["java", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-Dspring.profiles.active=prod", \
+  "-jar", "app.jar"]

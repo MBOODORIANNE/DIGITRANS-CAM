@@ -1,0 +1,140 @@
+# ============================================================
+# DIGITRANS-CM — Kubernetes Manifests
+# Déploiement du module CRM sur EKS (AWS af-south-1)
+# Auteur : Équipe CRM — Leukefack Christian
+# ============================================================
+
+# ── Namespace dédié ─────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: digitrans-crm
+  labels:
+    project: digitrans-cm
+    module: crm-savoirmanger
+
+---
+# ── ConfigMap : configuration non-sensible ─────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crm-backend-config
+  namespace: digitrans-crm
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPRING_FLYWAY_ENABLED: "true"
+  JWT_EXPIRATION: "86400000"
+  SERVER_PORT: "8080"
+
+---
+# ── Secret : données sensibles (encodées base64) ───────────
+# ⚠️ En production, utiliser AWS Secrets Manager + External Secrets Operator
+apiVersion: v1
+kind: Secret
+metadata:
+  name: crm-backend-secrets
+  namespace: digitrans-crm
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-service:3306/crm_db?useSSL=false&serverTimezone=Africa/Douala"
+  SPRING_DATASOURCE_USERNAME: "crmuser"
+  SPRING_DATASOURCE_PASSWORD: "CrmPass2026!"
+  JWT_SECRET: "DigitransCrmJwtSecretKey2026VeryLongAndSecureKeyForHS512!"
+
+---
+# ── Déploiement Backend Spring Boot ────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crm-backend
+  namespace: digitrans-crm
+  labels:
+    app: crm-backend
+    version: v1.0.0
+spec:
+  replicas: 2  # Haute disponibilité (disponibilité ≥ 99,9%)
+  selector:
+    matchLabels:
+      app: crm-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zéro downtime lors des déploiements
+  template:
+    metadata:
+      labels:
+        app: crm-backend
+        version: v1.0.0
+    spec:
+      containers:
+        - name: crm-backend
+          image: VOTRE_ACCOUNT_ID.dkr.ecr.af-south-1.amazonaws.com/digitrans-crm-backend:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: crm-backend-config
+            - secretRef:
+                name: crm-backend-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      restartPolicy: Always
+
+---
+# ── Déploiement Frontend Angular ────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crm-frontend
+  namespace: digitrans-crm
+  labels:
+    app: crm-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crm-frontend
+  template:
+    metadata:
+      labels:
+        app: crm-frontend
+    spec:
+      containers:
+        - name: crm-frontend
+          image: VOTRE_ACCOUNT_ID.dkr.ecr.af-south-1.amazonaws.com/digitrans-crm-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30

@@ -1,0 +1,46 @@
+# ============================================================
+# DIGITRANS-CM — Ingress Kubernetes
+# Règles d'accès externe + routing HTTP
+# ============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crm-ingress
+  namespace: digitrans-crm
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: "/actuator/health"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+spec:
+  rules:
+    - http:
+        paths:
+          # Toutes les requêtes /api/* → backend Spring Boot
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: crm-backend-service
+                port:
+                  number: 8080
+          # Swagger UI → backend
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: crm-backend-service
+                port:
+                  number: 8080
+          # Tout le reste → frontend Angular
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: crm-frontend-service
+                port:
+                  number: 80
