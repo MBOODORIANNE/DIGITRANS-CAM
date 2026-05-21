@@ -86,9 +86,8 @@ jobs:
 
       - name: Build frontend image
         run: |
-          cp crmBackend/docker/nginx.conf crmFrontend/nginx.conf
           docker build \
-            -f crmBackend/docker/Dockerfile.frontend \
+            -f crmFrontend/Dockerfile.frontend \
             -t digitrans-frontend \
             ./crmFrontend
   # =========================
