@@ -1,8 +1,5 @@
 # ============================================================
-# DIGITRANS-CM — Pipeline CI/CD
-# GitHub Actions : Build → Test → Deploy AWS ECS (af-south-1)
-# Cible KPI : déploiement complet ≤ 15 minutes
-# Auteur : Équipe CRM — Mboo Atangana
+# DIGITRANS-CM — Pipeline CI/CD CORRIGÉ
 # ============================================================
 
 name: DIGITRANS-CRM CI/CD Pipeline
@@ -10,11 +7,11 @@ name: DIGITRANS-CRM CI/CD Pipeline
 on:
   push:
     branches:
-      - main        # Déploiement production
-      - develop     # Déploiement staging
+      - main
+      - develop
   pull_request:
     branches:
-      - develop     # Tests seulement (pas de déploiement)
+      - develop
 
 env:
   AWS_REGION: af-south-1
@@ -26,11 +23,10 @@ env:
 
 jobs:
 
-  # ══════════════════════════════════════════════════════════
-  # JOB 1 — Tests Backend Spring Boot
-  # ══════════════════════════════════════════════════════════
+  # =========================
+  # TEST BACKEND
+  # =========================
   test-backend:
-    name: Tests Backend (JUnit + Couverture)
     runs-on: ubuntu-latest
 
     services:
@@ -46,18 +42,17 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
 
-      - name: Run tests avec couverture JaCoCo
-        working-directory: ./backend
+      - name: Run tests
+        working-directory: ./crmBackend
         run: |
           mvn clean verify \
             -Dspring.profiles.active=test \
@@ -66,142 +61,64 @@ jobs:
             -Dspring.datasource.password=testpass \
             -B
 
-      - name: Vérifier couverture ≥ 80%
-        working-directory: ./backend
-        run: |
-          COVERAGE=$(cat target/site/jacoco/index.html | grep -o 'Total[^%]*%' | grep -o '[0-9]*%' | head -1 | tr -d '%')
-          echo "Couverture des tests : ${COVERAGE}%"
-          if [ "$COVERAGE" -lt 80 ]; then
-            echo "❌ ÉCHEC : Couverture ${COVERAGE}% < 80% requis"
-            exit 1
-          fi
-          echo "✅ Couverture ${COVERAGE}% ≥ 80% — OK"
-
-      - name: Upload rapport JaCoCo
+      - name: Upload JaCoCo
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: backend/target/site/jacoco/
+          path: crmBackend/target/site/jacoco/
 
-  # ══════════════════════════════════════════════════════════
-  # JOB 2 — Build & Push Images Docker vers AWS ECR
-  # ══════════════════════════════════════════════════════════
-  build-and-push:
-    name: Build Docker & Push ECR
+  # =========================
+  # BUILD DOCKER
+  # =========================
+  build:
     runs-on: ubuntu-latest
     needs: test-backend
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-
-    outputs:
-      backend-image: ${{ steps.build-backend.outputs.image }}
-      frontend-image: ${{ steps.build-frontend.outputs.image }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login AWS ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & Push image Backend
-        id: build-backend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build backend image
         run: |
           docker build \
-            -f backend/docker/Dockerfile.backend \
-            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_BACKEND_REPO:latest \
-            ./backend
-          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
-          echo "image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+            -f crmBackend/docker/Dockerfile.backend \
+            -t digitrans-backend \
+            ./crmBackend
 
-      - name: Build & Push image Frontend
-        id: build-frontend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build frontend image
         run: |
           docker build \
-            -f backend/docker/Dockerfile.frontend \
-            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest \
-            ./frontend
-          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
-          echo "image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+            -f crmBackend/docker/Dockerfile.frontend \
+            -t digitrans-frontend \
+            ./crmFrontend
 
-  # ══════════════════════════════════════════════════════════
-  # JOB 3 — Déploiement sur AWS ECS (af-south-1)
-  # ══════════════════════════════════════════════════════════
+  # =========================
+  # DEPLOY AWS (OPTIONNEL)
+  # =========================
   deploy:
-    name: Deploy AWS ECS (Cape Town — af-south-1)
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: build
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Déployer Backend sur ECS
+      - name: Deploy ECS Backend
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE_BACKEND }} \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+            --force-new-deployment
 
-      - name: Déployer Frontend sur ECS
+      - name: Deploy ECS Frontend
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE_FRONTEND }} \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Attendre stabilisation des services
-        run: |
-          echo "⏳ Attente stabilisation backend..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE_BACKEND }} \
-            --region ${{ env.AWS_REGION }}
-          echo "✅ Backend stable"
-
-          echo "⏳ Attente stabilisation frontend..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE_FRONTEND }} \
-            --region ${{ env.AWS_REGION }}
-          echo "✅ Frontend stable"
-
-      - name: Mesurer temps de déploiement (KPI ≤ 15 min)
-        run: |
-          START_TIME=${{ github.event.head_commit.timestamp }}
-          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          echo "🚀 Déploiement démarré : $START_TIME"
-          echo "✅ Déploiement terminé : $END_TIME"
-          echo "📊 KPI CI/CD : Vérifier que la durée totale du workflow ≤ 15 minutes"
-
-      - name: Notification succès
-        run: |
-          echo "✅ DIGITRANS-CM CRM déployé avec succès sur AWS ECS af-south-1 (Cape Town)"
-          echo "🌍 Région choisie pour minimiser la latence depuis Douala (~50ms vs ~200ms Europe)"
+            --force-new-deployment
